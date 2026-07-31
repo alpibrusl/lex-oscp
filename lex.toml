@@ -1,0 +1,13 @@
+[package]
+name    = "lex-oscp"
+version = "0.1.0"
+lex     = "0.10.0"
+
+# OSCP (Open Smart Charging Protocol) library for the Lex language.
+# Covers the CapacityProvider <-> CapacityOptimizer grid-capacity
+# signaling side of EV charging — companion to lex-ocpp (CP<->CSMS) and
+# lex-ocpi (CPO<->eMSP roaming).
+
+[dependencies]
+lex-schema = { git = "https://github.com/alpibrusl/lex-schema" }
+lex-web    = { git = "https://github.com/alpibrusl/lex-web" }
