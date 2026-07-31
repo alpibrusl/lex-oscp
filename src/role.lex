@@ -1,17 +1,21 @@
 # lex-oscp — OSCP role constants
 #
-# OSCP is a peer-to-peer protocol between two roles: whichever party
-# owns the grid constraint (the CapacityProvider — a DSO/TSO, or an
-# aggregator standing in for one) and whichever party manages assets
-# behind that constraint (the CapacityOptimizer — a CPO/EMS, concretely
-# lex-ems in this fleet).
+# OSCP has (at least) three roles, confirmed via the NOWUM/pyoscp
+# reference implementation's namespace routing (/cp/2.0, /co/2.0,
+# /fp/2.0 — not yet cross-checked against the primary OCA spec text,
+# see README "Before writing schemas"):
 #
-# PROVISIONAL: these wire spellings ("CapacityProvider",
-# "CapacityOptimizer") are corroborated from public OSCP explainers and
-# the Open Charge Alliance's own protocol page, not yet checked against
-# the registration-gated OSCP 2.0/2.1 specification text. Confirm the
-# exact casing/spelling before shipping a real handshake against a
-# non-lex-oscp peer — see README "Before writing schemas".
+#   - CapacityProvider — owns the grid constraint (a DSO/TSO, or an
+#     aggregator standing in for one). Receives: adjust_group_capacity_
+#     forecast, group_capacity_compliance_error, update_group_measurements.
+#   - CapacityOptimizer — manages assets behind the constraint (a
+#     CPO/EMS — lex-ems, concretely, in this fleet). Receives:
+#     update_group_capacity_forecast, update_asset_measurements.
+#   - FlexibilityProvider — an optional intermediary/hub a
+#     CapacityProvider can forward a GroupCapacityForecast through
+#     rather than talking to every CapacityOptimizer directly. The
+#     rough OSCP analogue of OCPI's Hub role. Also receives
+#     update_group_capacity_forecast, on its own /fp/2.0 route.
 #
 # Effects: none.
 
@@ -23,7 +27,11 @@ fn capacity_optimizer() -> Str {
   "CapacityOptimizer"
 }
 
+fn flexibility_provider() -> Str {
+  "FlexibilityProvider"
+}
+
 fn all_roles() -> List[Str] {
-  [capacity_provider(), capacity_optimizer()]
+  [capacity_provider(), capacity_optimizer(), flexibility_provider()]
 }
 
