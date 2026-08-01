@@ -15,9 +15,20 @@
 # optional until checked against pyoscp's literal source or the
 # primary spec.
 #
-# Confirmed wire routes (pyoscp):
+# Confirmed wire route (pyoscp):
 #   POST /cp/2.0/update_group_measurements  body: UpdateGroupMeasurements
-#   POST /co/2.0/update_asset_measurements  body: UpdateAssetMeasurements
+#
+# pyoscp's own routing puts UpdateAssetMeasurements under
+# /co/2.0/update_asset_measurements — the CapacityOptimizer's own
+# namespace, even though it documents the same "CapacityOptimizer
+# reports actual usage against assets to the CapacityProvider"
+# direction as UpdateGroupMeasurements (see module_id.lex's catalog).
+# Read as an inconsistency in the reference implementation rather than
+# a real protocol distinction — client.lex routes both messages to
+# role.capacity_provider() (POST /cp/2.0/update_asset_measurements),
+# following the documented standard direction rather than pyoscp's
+# routing quirk. Flag this for correction if the primary OCA spec text
+# ever becomes available to check against.
 #
 # Effects: none.
 

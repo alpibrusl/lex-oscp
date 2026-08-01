@@ -181,8 +181,19 @@ fn send_update_group_measurements(base :: Str, body :: jv.Json, token :: Str, re
   post_action(base, role.capacity_provider(), path_update_group_measurements(), jv.stringify(body), token, request_id)
 }
 
+# CapacityOptimizer -> CapacityProvider, same as send_update_group_
+# measurements above — module_id.lex's own catalog already documents
+# both UpdateGroupMeasurements and UpdateAssetMeasurements as
+# "actual usage against assets," reported by the optimizer to the
+# provider. Routed to role.capacity_provider() to match that standard
+# direction, not pyoscp's apparently inconsistent /co/2.0/ namespacing
+# for this one action (see measurements.lex's header comment and
+# README "Before trusting these schemas further" for the discrepancy)
+# — an academic reference implementation's routing quirk isn't reason
+# enough to misroute a message whose own documented direction is
+# unambiguous.
 fn send_update_asset_measurements(base :: Str, body :: jv.Json, token :: Str, request_id :: Str) -> [net] Result[Unit, ClientError] {
-  post_action(base, role.capacity_optimizer(), path_update_asset_measurements(), jv.stringify(body), token, request_id)
+  post_action(base, role.capacity_provider(), path_update_asset_measurements(), jv.stringify(body), token, request_id)
 }
 
 fn send_heartbeat(base :: Str, receiving_role :: Str, body :: jv.Json, token :: Str, request_id :: Str) -> [net] Result[Unit, ClientError] {
