@@ -85,7 +85,16 @@ Confirmed via `pyoscp`'s namespace routing (`/cp/2.0`, `/co/2.0`,
 | AdjustGroupCapacityForecast | CapacityOptimizer → CapacityProvider | `POST /cp/2.0/adjust_group_capacity_forecast` | `GroupCapacityForecast` |
 | GroupCapacityComplianceError | CapacityOptimizer → CapacityProvider | `POST /cp/2.0/group_capacity_compliance_error` | `GroupCapacityComplianceError` |
 | UpdateGroupMeasurements | CapacityOptimizer → CapacityProvider | `POST /cp/2.0/update_group_measurements` | `UpdateGroupMeasurements` |
-| UpdateAssetMeasurements | CapacityOptimizer → CapacityProvider | `POST /co/2.0/update_asset_measurements` | `UpdateAssetMeasurements` |
+| UpdateAssetMeasurements | CapacityOptimizer → CapacityProvider | `POST /cp/2.0/update_asset_measurements`¹ | `UpdateAssetMeasurements` |
+
+¹ `pyoscp` itself routes this one action under `/co/2.0/` — the
+CapacityOptimizer's own namespace — even though it documents the same
+CapacityOptimizer→CapacityProvider direction as `UpdateGroupMeasurements`.
+Read as an inconsistency in the reference implementation, not a real
+protocol distinction: `client.lex` routes both to `role.capacity_provider()`,
+following the documented standard direction rather than pyoscp's routing
+quirk. Flag for correction if the primary OCA spec text ever becomes
+available to check against.
 
 `pyoscp` also exposes `/ep` and `/epc` namespaces for a
 capacity-*price* negotiation extension (`GroupCapacityPrice`,
