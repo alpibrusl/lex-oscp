@@ -174,9 +174,10 @@ src/
                      (role, action) rather than OCPI's (method, module) [shipped]
   client.lex         Outbound HTTP client ([net]) + retry/backoff
                      ([net, time]) + role-scoped URL builders       [shipped]
+  route_io.lex       Effectful registry ([io, time, sql] upper bound),
+                     mirrors lex-ocpi's route_io.lex                [shipped]
   group.lex          Capacity-group identifier (OSCP's grouping concept
                      — the rough equivalent of OCPI's PartyId)     [planned]
-  route_io.lex       Effectful registry ([io, time, sql] upper bound) [planned]
   v21/               Only once a real spec diff from 2.0 is confirmed —
                      don't create speculatively.
 tests/
@@ -186,6 +187,10 @@ tests/
                          short-circuit                              [shipped]
   test_client.lex        12 tests: header builders, role_path/
                          action_url, retry classifier, backoff math [shipped]
+                         (route_io.lex has no dedicated test file —
+                         its dispatch logic mirrors route.lex's,
+                         already covered; lex-ocpi doesn't test its
+                         own route_io.lex separately either)
 examples/
   capacity_provider.lex           Minimal Capacity Provider over HTTP —
                                   the "external DSO" stand-in a twin
@@ -199,8 +204,8 @@ examples/
 
 - **Pure-core, effect-edge.** `route.lex`'s dispatcher and `v20/*.lex`'s
   validation never touch `[io]`/`[net]`/`[time]`; those live at the
-  transport boundary (`route_io.lex`, not yet written; `client.lex`;
-  the example `main()` entry points). Matches lex-ocpi's
+  transport boundary (`route_io.lex`, `client.lex`, the example
+  `main()` entry points, not yet written). Matches lex-ocpi's
   `route`/`route_io` split and lex-ocpp's `route`/`route_io` split.
 - **No response envelope.** OCPI wraps every response in
   `{data, status_code, status_message, timestamp}`; OSCP, per every
@@ -243,7 +248,7 @@ examples/
 | `route.dispatch`                                | none | shipped |
 | `client.base_request` / `with_*` / `role_path` / `action_url` | none | shipped |
 | `client.send` / `client.send_*` / `send_with_retry` | `[net]` (`[net, time]` for retry) | shipped |
-| `route_io.dispatch`                             | `[io, time, sql]` | planned |
+| `route_io.dispatch`                             | `[io, time, sql]` | shipped |
 | `examples/capacity_provider.main`               | `[net, io, time]` | planned |
 | `examples/capacity_optimizer_client.main`       | `[net, io]` | planned |
 
@@ -269,14 +274,12 @@ examples/
   non-summarized `pyoscp` source) directly, resolve the three open
   items in "Before trusting these schemas further" and remove the
   hedging language from `src/v20/*.lex`'s headers.
-- Write `route_io.lex` (the `[io, time, sql]` effectful dispatch
-  adapter, mirroring `lex-ocpi`'s), then wire a `lex-ems` OSCP client
-  (using `src/client.lex`'s `send_group_capacity_forecast` /
-  `send_update_group_measurements` / etc.) and a `lex-twin` "grid
-  operator" twin (using `route.lex`/`route_io.lex` to receive them) as
-  the first real consumer/producer pair — the same way `lex-ocpi`'s
-  `client.lex` + `lex-csms`'s `ocpi_server.lex` proved out that library
-  end-to-end.
+- Wire a `lex-ems` OSCP client (using `src/client.lex`'s
+  `send_group_capacity_forecast` / `send_update_group_measurements` /
+  etc.) and a `lex-twin` "grid operator" twin (using
+  `route.lex`/`route_io.lex` to receive them) as the first real
+  consumer/producer pair — the same way `lex-ocpi`'s `client.lex` +
+  `lex-csms`'s `ocpi_server.lex` proved out that library end-to-end.
 
 ## License
 
