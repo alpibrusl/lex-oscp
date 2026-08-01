@@ -133,9 +133,10 @@ literal `pyoscp` source file) directly:
 - **The response envelope shape.** `pyoscp`'s endpoints return bare
   `204`/`200` with a typed body on success, or `400`/`404` — there's no
   evidence of an OCPI-style `{data, status_code, status_message,
-  timestamp}` wrapper. `src/envelope.lex` (not yet written) should
-  probably just be per-endpoint HTTP status + body, not a generic
-  envelope type — don't build one just because lex-ocpi has one.
+  timestamp}` wrapper. `route.lex`'s `OscpResponse` is deliberately
+  just `{status, body}`, not a generic envelope type — if the primary
+  spec turns out to define one, that's a real (if smallish) design
+  change to `route.lex`, `route_io.lex`, and `client.lex`'s `send`.
 - **OSCP 2.1** — no deltas from 2.0 have been checked at all; don't
   create a `v21/` directory until a real diff is confirmed.
 
@@ -165,22 +166,26 @@ src/
     measurements.lex   EnergyMeasurement, InstantaneousMeasurement,
                        AssetMeasurement, UpdateGroupMeasurements,
                        UpdateAssetMeasurements                    [shipped]
-  error.lex          OscpError ADT                                [planned]
-  headers.lex        Auth header (Bearer token) + any request/
-                     correlation id headers OSCP defines           [planned]
+  headers.lex        Authorization/X-Request-ID/X-Correlation-ID,
+                     confirmed via pyoscp's RegistrationManager.py [shipped]
+  error.lex          OscpError ADT — plain HTTP status codes (204/400/
+                     404/401/403), not an OCPI-style numeric catalog [shipped]
+  route.lex          Pure handler registry + dispatch, keyed by
+                     (role, action) rather than OCPI's (method, module) [shipped]
+  client.lex         Outbound HTTP client ([net]) + retry/backoff
+                     ([net, time]) + role-scoped URL builders       [shipped]
   group.lex          Capacity-group identifier (OSCP's grouping concept
                      — the rough equivalent of OCPI's PartyId)     [planned]
-  route.lex          Pure handler registry + dispatch (mirrors
-                     lex-ocpi's route.lex)                         [planned]
   route_io.lex       Effectful registry ([io, time, sql] upper bound) [planned]
-  client.lex         Outbound HTTP client ([net]) + retry/backoff
-                     ([net, time]), mirrors lex-ocpi's client.lex   [planned]
   v21/               Only once a real spec diff from 2.0 is confirmed —
                      don't create speculatively.
 tests/
   test_v20_schemas.lex   21 tests: valid + invalid-enum +
                          missing-required-field cases              [shipped]
-  test_role.lex, test_route.lex, test_client.lex                   [planned]
+  test_route.lex         6 tests: dispatch, role mismatch, validator
+                         short-circuit                              [shipped]
+  test_client.lex        12 tests: header builders, role_path/
+                         action_url, retry classifier, backoff math [shipped]
 examples/
   capacity_provider.lex           Minimal Capacity Provider over HTTP —
                                   the "external DSO" stand-in a twin
@@ -192,11 +197,32 @@ examples/
 
 ## Design (carried over from lex-ocpi, apply the same way here)
 
-- **Pure-core, effect-edge.** The dispatcher, envelope construction,
-  and validation never touch `[io]`/`[net]`/`[time]`; those live at the
-  transport boundary (`route_io.lex`, `client.lex`, the example
-  `main()` entry points). Matches lex-ocpi's `route`/`route_io` split
-  and lex-ocpp's `route`/`route_io` split.
+- **Pure-core, effect-edge.** `route.lex`'s dispatcher and `v20/*.lex`'s
+  validation never touch `[io]`/`[net]`/`[time]`; those live at the
+  transport boundary (`route_io.lex`, not yet written; `client.lex`;
+  the example `main()` entry points). Matches lex-ocpi's
+  `route`/`route_io` split and lex-ocpp's `route`/`route_io` split.
+- **No response envelope.** OCPI wraps every response in
+  `{data, status_code, status_message, timestamp}`; OSCP, per every
+  confirmed `pyoscp` endpoint, does not — success is a bare `204`, and
+  `route.OscpResponse` is just `{status, body}`. Don't retrofit an
+  envelope type here just because the sibling library has one — see
+  "Before trusting these schemas further" above.
+- **Routes keyed by (role, action), not (method, action).** Every
+  confirmed `pyoscp` endpoint is POST — the HTTP verb doesn't
+  distinguish anything the way it does in OCPI's REST resources. What
+  *does* vary is which role namespace a message is registered under
+  (the same `UpdateGroupCapacityForecast` message is a real, distinct
+  route under both `/co/2.0` and `/fp/2.0`), so `route.lex` keys on
+  `(role, action)` instead.
+- **Handshake is asymmetric, not modeled as a client convenience.**
+  `lex-ocpi`'s `client.handshake` runs the whole OCPI credentials swap
+  as one synchronous call because OCPI's flow *is* synchronous.
+  OSCP's Handshake → HandshakeAcknowledgement is two independent POSTs
+  in opposite directions; `client.lex` deliberately has
+  `send_handshake` and `send_handshake_acknowledgement` as two separate
+  functions rather than one blocking round trip, so as not to
+  misrepresent the actual flow.
 - **Constraints as variants, not closures**, for the same three payoffs
   lex-schema/lex-ocpi's README documents: `lex audit` inspectability,
   codegen-friendliness, and cheaper runtime representation than a
@@ -208,16 +234,18 @@ examples/
 
 ## Effect system
 
-| Function                                     | Effects | Status |
-|-----------------------------------------------|---------|--------|
-| `role.*` / `module_id.*`                      | none | shipped |
-| `v20/*.validate_*`                            | none | shipped |
-| `route.dispatch`                              | none (timestamp is an arg) | planned |
-| `route_io.dispatch`                           | `[io, time, sql]` | planned |
-| `client.send` / `client.get_with_token` / ... | `[net]` | planned |
-| `client.handshake`                            | `[net]` | planned |
-| `examples/capacity_provider.main`             | `[net, io, time]` | planned |
-| `examples/capacity_optimizer_client.main`     | `[net, io]` | planned |
+| Function                                      | Effects | Status |
+|------------------------------------------------|---------|--------|
+| `role.*` / `module_id.*`                        | none | shipped |
+| `v20/*.validate_*`                              | none | shipped |
+| `headers.*` (parse/build)                       | none | shipped |
+| `error.*`                                       | none | shipped |
+| `route.dispatch`                                | none | shipped |
+| `client.base_request` / `with_*` / `role_path` / `action_url` | none | shipped |
+| `client.send` / `client.send_*` / `send_with_retry` | `[net]` (`[net, time]` for retry) | shipped |
+| `route_io.dispatch`                             | `[io, time, sql]` | planned |
+| `examples/capacity_provider.main`               | `[net, io, time]` | planned |
+| `examples/capacity_optimizer_client.main`       | `[net, io]` | planned |
 
 ## Pairing with lex-ems and lex-csms
 
@@ -241,10 +269,14 @@ examples/
   non-summarized `pyoscp` source) directly, resolve the three open
   items in "Before trusting these schemas further" and remove the
   hedging language from `src/v20/*.lex`'s headers.
-- Write `route.lex`/`route_io.lex`/`client.lex`, then wire a `lex-ems`
-  OSCP client and a `lex-twin` "grid operator" twin as the first real
-  consumer/producer pair, the same way `lex-ocpi`'s `client.lex` +
-  `lex-csms`'s `ocpi_server.lex` proved out that library end-to-end.
+- Write `route_io.lex` (the `[io, time, sql]` effectful dispatch
+  adapter, mirroring `lex-ocpi`'s), then wire a `lex-ems` OSCP client
+  (using `src/client.lex`'s `send_group_capacity_forecast` /
+  `send_update_group_measurements` / etc.) and a `lex-twin` "grid
+  operator" twin (using `route.lex`/`route_io.lex` to receive them) as
+  the first real consumer/producer pair — the same way `lex-ocpi`'s
+  `client.lex` + `lex-csms`'s `ocpi_server.lex` proved out that library
+  end-to-end.
 
 ## License
 
