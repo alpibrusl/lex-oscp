@@ -1,7 +1,7 @@
 [package]
 name    = "lex-oscp"
 version = "0.1.0"
-lex     = "0.10.12"
+lex     = "0.10.13"
 
 # OSCP (Open Smart Charging Protocol) library for the Lex language.
 # Covers the CapacityProvider <-> CapacityOptimizer grid-capacity
